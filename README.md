@@ -1,2 +1,2 @@
 # warframe_synd_eval
-Evaluate which syndicate reward is worth the most on warframe.market
+Warframe tool to evaluate which syndicate reward is worth the most on warframe.market
