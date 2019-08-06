@@ -555,7 +555,7 @@ if __name__ == '__main__':
                 if order[2] == 'ingame'
             ])
             # In-game, online and offline
-            rewards_data_by_name[reward_name][0] = price([
+            rewards_data_by_name[reward_name][1] = price([
                 order[0:2]
                 for order in item_orders
             ])
