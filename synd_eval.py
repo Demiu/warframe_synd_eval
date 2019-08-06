@@ -1,7 +1,17 @@
 # Created by Demiu
 import requests
+import sys
 
 MARKET_API_URL = "https://api.warframe.market/v1/items"
+
+# Default value for how many listings of lowest value should be included in the average
+PRICE_AVERAGE_FIRST = 3
+
+# Plat per (standing / divisor) is easier for humans than plat per standing
+STANDING_DIVISOR = 1000
+
+# How many rewards to list per syndicate, sorted by plat per standing (decreasing)
+LIST_BEST_N_REWARDS = 5
 
 syndicate_rewards = {
     "Steel Meridian" : {
@@ -73,7 +83,7 @@ syndicate_rewards = {
             "Reinforcing Stomp",
             # Saryn
             "Venom Dose",
-            "Regenerative Volt",
+            "Regenerative Molt",
             "Contagion Cloud"
         ),
         100000 : (
@@ -176,7 +186,7 @@ syndicate_rewards = {
             "Entropy Spike",
             "Entropy Flight",
             "Entropy Detonation",
-            "Entropy Burst"
+            "Entropy Burst",
             # Banshee
             "Sonic Fracture",
             "Resonance",
@@ -196,12 +206,12 @@ syndicate_rewards = {
             "Corroding Barrage",
             "Tidal Impunity",
             "Curative Undertow",
-            "Pilfering Sward",
+            "Pilfering Swarm",
             # Ivara
             "Empowered Quiver",
             "Piercing Navigator",
             "Infiltrate",
-            "Concetrated Arrow",
+            "Concentrated Arrow",
             # Limbo
             "Rift Haven",
             "Rift Torrent",
@@ -252,7 +262,7 @@ syndicate_rewards = {
             "Toxic Sequence",
             "Deadly Sequence",
             "Voltage Sequence",
-            "Sequence Burn"
+            "Sequence Burn",
             # Banshee
             "Sonic Fracture",
             "Resonance",
@@ -270,7 +280,7 @@ syndicate_rewards = {
             "Empowered Quiver",
             "Piercing Navigator",
             "Infiltrate",
-            "Concetrated Arrow",
+            "Concentrated Arrow",
             # Mag
             "Greedy Pull",
             "Magnetized Discharge",
@@ -327,8 +337,8 @@ syndicate_rewards = {
         ),
         25000 : (
             # Weapon Augments
-            "Gleaming Blith",
-            "Eroding Blith",
+            "Gleaming Blight",
+            "Eroding Blight",
             "Stockpiled Blight",
             "Toxic Blight",
             # Ash
@@ -372,7 +382,7 @@ syndicate_rewards = {
             "Shield of Shadows",
             # Saryn
             "Venom Dose",
-            "Regenerative Volt",
+            "Regenerative Molt",
             "Contagion Cloud",
             # Titania
             "Beguiling Lantern",
@@ -424,7 +434,7 @@ syndicate_rewards = {
             "Corroding Barrage",
             "Tidal Impunity",
             "Curative Undertow",
-            "Pilfering Sward",
+            "Pilfering Swarm",
             # Mag
             "Greedy Pull",
             "Magnetized Discharge",
@@ -477,6 +487,30 @@ syndicate_rewards = {
     }
 }
 
+def price(orders, average_of_first=PRICE_AVERAGE_FIRST):
+    n = len(orders)
+    if n < 1:
+            return 0
+    if n < average_of_first:
+            orders_sorted = sorted(orders, key = lambda x: int(x[0]))
+
+            sum = 0
+            quant = 0
+            for order in orders_sorted[0:n]:
+                sum += order[0]
+                quant += order[1]
+            return sum/quant
+    else:
+            orders_sorted = sorted(orders, key = lambda x: int(x[0]))
+            
+            sum = 0
+            quant = 0
+            for order in orders_sorted[0:average_of_first]:
+                sum += order[0]
+                quant += order[1]
+            return sum/quant
+
+
 def get_page(url):
     response = requests.get(url)
     if response.status_code != 200:
@@ -489,7 +523,68 @@ if __name__ == '__main__':
         for synd_rew_cost, synd_rew_at_cost in synd_rew_tiers.items():
             for synd_rew_name in synd_rew_at_cost:
                 if synd_rew_name not in rewards_data_by_name:
-                    rewards_data_by_name[synd_rew_name] = [synd_rew_cost, 0]
+                    # Standing cost, in-game average price, in-game and online and offline average price
+                    rewards_data_by_name[synd_rew_name] = [0, 0]
 
     market_items = get_page(MARKET_API_URL).json()['payload']['items']
-    i = 1
+    
+    rewards_i = 0
+    rewards_num = len(rewards_data_by_name)
+    for reward_name, reward_data in rewards_data_by_name.items():
+        id = -1
+        for i, market_item in enumerate(market_items):
+            if market_item['item_name'] == reward_name:
+                id = i
+                break
+        
+        if id == -1:
+            print("\nCould not find market data for {0}! Check spelling or if item is listed on warframe.market".format(reward_name))
+        else:
+            item_orders_url = "https://api.warframe.market/v1/items/{0}/orders".format(market_item['url_name'])
+            item_orders = get_page(item_orders_url).json()['payload']['orders']
+            item_orders = [
+                            (order['platinum'], order['quantity'], order['user']['status']) 
+                            for order in item_orders 
+                            if order['order_type'] == 'sell' and order['region'] == 'en'
+            ]
+            
+            # In-game
+            rewards_data_by_name[reward_name][0] = price([
+                order[0:2]
+                for order in item_orders
+                if order[2] == 'ingame'
+            ])
+            # In-game, online and offline
+            rewards_data_by_name[reward_name][0] = price([
+                order[0:2]
+                for order in item_orders
+            ])
+
+        rewards_i += 1
+        sys.stdout.write("\rGetting items market data... {:.2f}%".format(100*rewards_i/rewards_num))
+        sys.stdout.flush()
+    
+    print("\nAssigning data to syndicates...")
+    syndicate_rewards_sorted = {}
+    for synd_name, synd_rew_tiers in syndicate_rewards.items():
+        syndicate_rewards_sorted[synd_name] = []
+        for synd_rew_cost, synd_rew_at_cost in synd_rew_tiers.items():
+            for synd_rew_name in synd_rew_at_cost:
+                syndicate_rewards_sorted[synd_name].append((
+                    synd_rew_name,
+                    rewards_data_by_name[synd_rew_name][0] / (synd_rew_cost / STANDING_DIVISOR),
+                    rewards_data_by_name[synd_rew_name][1] / (synd_rew_cost / STANDING_DIVISOR),
+                ))
+    
+    for synd_name, synd_rew_list in syndicate_rewards_sorted.items():
+        syndicate_rewards_sorted[synd_name] = sorted(syndicate_rewards_sorted[synd_name], key = lambda x: int(x[1]), reverse=True)
+    
+    print("\nFormat of rewards is: name (plat per 1k standing for online offers, plat per 1k standing for all offers)")
+    for synd_name, synd_rew_list in syndicate_rewards_sorted.items():
+        print("\nBest offerings for {0}:".format(synd_name))
+
+        for i, reward in enumerate(synd_rew_list):
+            if i == LIST_BEST_N_REWARDS:
+                break
+
+            print("* {0} ({1:.2f}, {2:.2f})".format(reward[0], reward[1], reward[2]))
