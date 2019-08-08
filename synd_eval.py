@@ -492,7 +492,7 @@ def price(orders, average_of_first=PRICE_AVERAGE_FIRST):
     if n < 1:
             return 0
     if n < average_of_first:
-            orders_sorted = sorted(orders, key = lambda x: int(x[0]))
+            orders_sorted = sorted(orders, key = lambda x: x[0])
 
             sum = 0
             quant = 0
@@ -501,7 +501,7 @@ def price(orders, average_of_first=PRICE_AVERAGE_FIRST):
                 quant += order[1]
             return sum/quant
     else:
-            orders_sorted = sorted(orders, key = lambda x: int(x[0]))
+            orders_sorted = sorted(orders, key = lambda x: x[0])
             
             sum = 0
             quant = 0
@@ -577,7 +577,7 @@ if __name__ == '__main__':
                 ))
     
     for synd_name, synd_rew_list in syndicate_rewards_sorted.items():
-        syndicate_rewards_sorted[synd_name] = sorted(syndicate_rewards_sorted[synd_name], key = lambda x: int(x[1]), reverse=True)
+        syndicate_rewards_sorted[synd_name] = sorted(syndicate_rewards_sorted[synd_name], key = lambda x: x[1], reverse=True)
     
     print("\nFormat of rewards is: name (plat per 1k standing for online offers, plat per 1k standing for all offers)")
     for synd_name, synd_rew_list in syndicate_rewards_sorted.items():
